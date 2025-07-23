@@ -4,9 +4,10 @@ const dbConfig = require('../utils/db');
 
 // Ruta de los excels
 const pathAccesoriosLight = path.join(__dirname, '../excel/accesorios_lista_opticas_con_monturas_transparentes.xlsx');
-const pathAccesoriosNegros = path.join(__dirname, '../excel/accesorios_lista_opticas_sin_monturas_transparentes.xlsx');
+//const pathAccesoriosNegros = path.join(__dirname, '../excel/accesorios_lista_opticas_sin_monturas_transparentes.xlsx');
 const pathOpticasLight = path.join(__dirname, '../excel/opticas_con_montura_trasnparente.xlsx');
 
+//lee hoja de excel y devuelve un array de objetos
 const readExcel = (filePath) => {
   const workbook = xlsx.readFile(filePath);
   const sheetName = workbook.SheetNames[0];
@@ -15,45 +16,40 @@ const readExcel = (filePath) => {
 
 const vincular = async () => {
   try {
+    // Leer los excels y cargar los datos
     const accesoriosLight = readExcel(pathAccesoriosLight);
-    const accesoriosNegros = readExcel(pathAccesoriosNegros);
     const opticasLight = readExcel(pathOpticasLight);
+   
+    for (const opticaRow of opticasLight) {
+      const idCode = opticaRow["Codigo Optica"];
 
-    const [opticasActivas] = await dbConfig.query('SELECT id, nombre FROM opticas WHERE activa = 1');
+      if (!idCode) continue;
 
-    // Vincular accesorios light a ópticas específicas
-    for (const optica of opticasLight) {
-      const opticaId = optica.optica_id || optica.id || optica.ID;
-      if (!opticaId) {
-        console.error(`Optica ID no encontrado para: ${optica.nombre}`);
+      const [rows] = await dbConfig.query(
+        'SELECT BIN_TO_UUID(id) AS optica_uuid FROM optic WHERE id_code = ?',
+        [idCode]
+      );
+
+      if (rows.length === 0) {
+        console.warn(`Óptica con id_code ${idCode} no encontrada en la base de datos.`);
         continue;
       }
+
+      const opticaUUID = rows[0].optica_uuid;
+      console.log("🚀 ~ vincular ~ opticaUUID:", opticaUUID)
+    
       for (const acc of accesoriosLight) {
-        const accesorioId = acc.accesorio_id || acc.ID_accesorio || acc.id_accesorio;
-        const monturaId = acc.id_montura || acc.montura_id;
-
-        if (accesorioId && monturaId) {
+        const accesorioId = acc.id;
+        // console.log(`INSERT INTO optic_accessories (optic_id, accessory_id)
+        //     VALUES (UUID_TO_BIN("${opticaUUID}"), UUID_TO_BIN("${accesorioId}"))`)
+        if (accesorioId) {
           await dbConfig.query(
-            'INSERT INTO optic_accessories (optica_id, accesorio_id, montura_id) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE montura_id = VALUES(montura_id)',
-            [opticaId, accesorioId, monturaId]
+            `INSERT INTO optic_accessories (optic_id, accessory_id)
+            VALUES (UUID_TO_BIN(?), UUID_TO_BIN(?))
+      `,
+            [opticaUUID, accesorioId]
           );
-        }
-      }
-    }
-
-    // Vincular accesorios negros a todas las ópticas activas
-    for (const optica of opticasActivas) {
-      const opticaId = optica.id;
-
-      for (const acc of accesoriosNegros) {
-        const accesorioId = acc.accesorio_id || acc.ID_accesorio || acc.id_accesorio;
-        const monturaId = acc.id_montura || acc.montura_id;
-
-        if (accesorioId && monturaId) {
-          await dbConfig.query(
-            'INSERT INTO optic_accessories (optica_id, accesorio_id, montura_id) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE montura_id = VALUES(montura_id)',
-            [opticaId, accesorioId, monturaId]
-          );
+          // console.log("🚀 ~ vincular ~ dbConfig:", dbConfig)
         }
       }
     }
