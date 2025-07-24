@@ -58,7 +58,7 @@ const vincular = async () => {
 
     const [opticasActivasFiltradas] = await dbConfig.query(
       `SELECT BIN_TO_UUID(id) AS optica_uuid, id_code FROM optic 
-       WHERE is_active = 1 AND id_code NOT IN (${[...codigosOpticasLight].map(() => '?').join(',')})`,
+       WHERE is_active = 0 AND id_code NOT IN (${[...codigosOpticasLight].map(() => '?').join(',')})`,
       [...codigosOpticasLight]
     );
     console.log("🚀 ~ vincular ~ opticasActivasFiltradas:", opticasActivasFiltradas)
