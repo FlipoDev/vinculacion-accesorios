@@ -2,12 +2,12 @@ const xlsx = require('xlsx');
 const path = require('path');
 const dbConfig = require('../utils/db');
 
-// Ruta de los excels
+// Rutas de los Excels
 const pathAccesoriosLight = path.join(__dirname, '../excel/accesorios_lista_opticas_con_monturas_transparentes.xlsx');
-//const pathAccesoriosNegros = path.join(__dirname, '../excel/accesorios_lista_opticas_sin_monturas_transparentes.xlsx');
+const pathAccesoriosNegros = path.join(__dirname, '../excel/accesorios_lista_opticas_sin_monturas_transparentes.xlsx');
 const pathOpticasLight = path.join(__dirname, '../excel/opticas_con_montura_trasnparente.xlsx');
 
-//lee hoja de excel y devuelve un array de objetos
+// Función para leer Excel
 const readExcel = (filePath) => {
   const workbook = xlsx.readFile(filePath);
   const sheetName = workbook.SheetNames[0];
@@ -16,13 +16,15 @@ const readExcel = (filePath) => {
 
 const vincular = async () => {
   try {
-    // Leer los excels y cargar los datos
+    // Leer datos
     const accesoriosLight = readExcel(pathAccesoriosLight);
+    // const accesoriosNegros = readExcel(pathAccesoriosNegros);
     const opticasLight = readExcel(pathOpticasLight);
-   
+ 
+    // Vinculación de accesorios LIGHT
+    
     for (const opticaRow of opticasLight) {
       const idCode = opticaRow["Codigo Optica"];
-
       if (!idCode) continue;
 
       const [rows] = await dbConfig.query(
@@ -36,25 +38,48 @@ const vincular = async () => {
       }
 
       const opticaUUID = rows[0].optica_uuid;
-      console.log("🚀 ~ vincular ~ opticaUUID:", opticaUUID)
-    
+      console.log("🎯 Vinculando óptica light:", opticaUUID);
+
       for (const acc of accesoriosLight) {
         const accesorioId = acc.id;
-        // console.log(`INSERT INTO optic_accessories (optic_id, accessory_id)
-        //     VALUES (UUID_TO_BIN("${opticaUUID}"), UUID_TO_BIN("${accesorioId}"))`)
-        if (accesorioId) {
-          await dbConfig.query(
-            `INSERT INTO optic_accessories (optic_id, accessory_id)
-            VALUES (UUID_TO_BIN(?), UUID_TO_BIN(?))
-      `,
-            [opticaUUID, accesorioId]
-          );
-          // console.log("🚀 ~ vincular ~ dbConfig:", dbConfig)
-        }
+       
+        await dbConfig.query(
+          `INSERT INTO optic_accessories (optic_id, accessory_id)
+            VALUES (UUID_TO_BIN(?), UUID_TO_BIN(?))`,
+          [opticaUUID, accesorioId]
+        );
       }
     }
 
-    console.log('Vinculación completada.');
+   
+    // Vinculación de accesorios NO LIGHT
+   
+    // const codigosOpticasLight = new Set(opticasLight.map(optica => optica["Codigo Optica"]));
+
+    // const [opticasActivasFiltradas] = await dbConfig.query(
+    //   `SELECT BIN_TO_UUID(id) AS optica_uuid, id_code FROM optic 
+    //    WHERE is_active = 1 AND id_code NOT IN (${[...codigosOpticasLight].map(() => '?').join(',')})`,
+    //   [...codigosOpticasLight]
+    // );
+    // console.log("🚀 ~ vincular ~ opticasActivasFiltradas:", opticasActivasFiltradas)
+
+    // for (const optica of opticasActivasFiltradas) {
+    //   const opticaUUID = optica.optica_uuid;
+    //   console.log("Vinculando óptica no light:", opticaUUID);
+
+    //   for (const acc of accesoriosNegros) {
+    //     const accesorioId = acc.id;
+    //     if (accesorioId) {
+    //       await dbConfig.query(
+    //         `INSERT INTO optic_accessories (optic_id, accessory_id)
+    //          VALUES (UUID_TO_BIN(?), UUID_TO_BIN(?))`,
+    //         [opticaUUID, accesorioId]
+    //       );
+    //     }
+    //   }
+    // }
+
+    console.log('Vinculación completada con éxito.');
     process.exit();
   } catch (error) {
     console.error('Error en vinculación:', error.message);
